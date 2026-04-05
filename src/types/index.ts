@@ -12,6 +12,15 @@ export interface Player {
   created_at: string
 }
 
+export interface Season {
+  id: string
+  name: string
+  start_date: string
+  end_date: string
+  active: boolean
+  created_at: string
+}
+
 export interface Game {
   id: string
   home_team_id: string
@@ -22,10 +31,26 @@ export interface Game {
   home_score: number
   away_score: number
   notes: string | null
+  season_id: string | null
   created_at: string
-  // joined
   home_team?: Team
   away_team?: Team
+}
+
+export interface ScheduleEntry {
+  id: string
+  season_id: string
+  home_team_id: string
+  away_team_id: string
+  game_date: string
+  game_time: string | null
+  location: string | null
+  game_id: string | null
+  notes: string | null
+  created_at: string
+  home_team?: Team
+  away_team?: Team
+  game?: Game
 }
 
 export interface PlayerGameStats {
@@ -49,8 +74,25 @@ export interface PlayerGameStats {
   fouls: number
   plus_minus: number
   created_at: string
-  // joined
   player?: Player
+}
+
+export interface ShotLocation {
+  id: string
+  game_id: string
+  player_id: string
+  x: number
+  y: number
+  shot_type: '2pt' | '3pt'
+  made: boolean
+  created_at: string
+}
+
+export interface PlayerNote {
+  id: string
+  player_id: string
+  note: string
+  created_at: string
 }
 
 export type StatKey =
@@ -63,6 +105,7 @@ export interface StatAction {
   stat: StatKey
   value: number
   timestamp: number
+  shotLocationId?: string
 }
 
 export function computePoints(s: Pick<PlayerGameStats, 'fgm' | 'three_pm' | 'ftm'>): number {
