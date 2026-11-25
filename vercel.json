@@ -1,5 +1,15 @@
 {
+  "redirects": [
+    { "source": "/teams", "destination": "/stat-star/teams", "permanent": false },
+    { "source": "/schedule", "destination": "/stat-star/schedule", "permanent": false },
+    { "source": "/teams/:path*", "destination": "/stat-star/teams/:path*", "permanent": false },
+    { "source": "/schedule/:path*", "destination": "/stat-star/schedule/:path*", "permanent": false },
+    { "source": "/game/:path*", "destination": "/stat-star/game/:path*", "permanent": false },
+    { "source": "/players/:path*", "destination": "/stat-star/players/:path*", "permanent": false },
+    { "source": "/stats", "destination": "/stat-star/stats", "permanent": false },
+    { "source": "/seasons", "destination": "/stat-star/seasons", "permanent": false }
+  ],
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/stat-star/:path*", "destination": "/stat-star/index.html" }
   ]
 }
