@@ -1,18 +1,35 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { api, type Frame, type Gallery, type Overview, type Schedule } from './api'
+import QRCode from 'qrcode'
+import { api, frameUrl, img, type Frame, type Gallery, type Overview, type Schedule } from './api'
 import { AddFrameForm, FrameReady, Steps, type NewFrame } from './AddFrame'
 import { useSession } from './session'
 
-const TONES = ['#5B3A29', '#1F4B55', '#4A3F6B', '#3B5230', '#5C2B3B', '#5A4A1E', '#2E4466', '#6B2A22']
-
 export function photoCount(n?: number) {
-  return `${n ?? 0} photo${n === 1 ? '' : 's'}`
+  return `${n ?? 0} photograph${n === 1 ? '' : 's'}`
 }
 
 function niceDate(d: string) {
   const [y, m, day] = d.split('-').map(Number)
   return new Date(y, m - 1, day).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+}
+
+/** A taped photograph: the gallery's cover, or a sepia placeholder when there is none. */
+export function TapedPhoto({ src, index, label, className }: { src?: string | null; index: number; label: string; className: string }) {
+  return (
+    <div className={className}>
+      <div className="clip">
+        {src ? <img className="sepia-photo" src={img(src, 640)} alt="" loading="lazy" /> : (
+          <>
+            <div className={`ph-fill t${index % 4}`} />
+            <span className="ph-label">{label}</span>
+          </>
+        )}
+      </div>
+      <span className="tape l" aria-hidden="true" />
+      <span className="tape r" aria-hidden="true" />
+    </div>
+  )
 }
 
 export default function Manage() {
@@ -57,16 +74,18 @@ export default function Manage() {
   }
 
   if (error) return <div className="wrap pad"><p className="error" role="alert">{error}</p></div>
-  if (!data) return <p className="muted pad wrap">Loading your frames…</p>
+  if (!data) return <p className="muted pad wrap">Opening the archive…</p>
 
+  const totalPhotos = data.galleries.reduce((n, g) => n + (g.count || 0), 0)
   const inFrames = (g: Gallery) => data.frames.filter((f) => f.current_gallery_id === g.id || f.gallery_id === g.id)
 
   return (
     <div className="wrap manage">
       <div className="manage-head">
         <div>
-          <h2 className="display">Your house, frame by frame</h2>
-          <p className="muted">Galleries hold the photos. Frames are the spots in your house, each with a QR code. A frame shows one gallery at a time.</p>
+          <div className="mono">The index · {data.galleries.length} album{data.galleries.length === 1 ? '' : 's'} · {totalPhotos.toLocaleString()} photographs</div>
+          <h2>Your house, frame by frame</h2>
+          <p>Albums hold the photographs. Frames are the spots on your walls, each with a QR code. A frame shows one album at a time.</p>
         </div>
         <button type="button" className="link-btn" onClick={signOut}>Sign out</button>
       </div>
@@ -78,17 +97,17 @@ export default function Manage() {
       <section className="section" id="frames">
         <div className="section-head">
           <div>
-            <h2 className="display">Frames</h2>
-            <p className="muted small">Each one has its own QR code that never changes.</p>
+            <div className="mono">On the walls</div>
+            <h2>Frames</h2>
           </div>
-          {data.frames.length > 0 && <Link className="btn btn-ghost-dark" to="/print">Print all codes</Link>}
+          {data.frames.length > 0 && <Link className="btn ghost sm" to="/print">Print QR sheet</Link>}
         </div>
         <div className="frame-grid">
           {data.frames.map((f, i) => (
             <FrameCard
               key={f.id}
               frame={f}
-              tone={TONES[i % TONES.length]}
+              index={i}
               galleries={data.galleries}
               current={f.current_gallery_id ? byId.get(f.current_gallery_id) : undefined}
               schedules={data.schedules.filter((s) => s.frame_id === f.id)}
@@ -99,7 +118,7 @@ export default function Manage() {
           ))}
           <div className="add-tile">
             <h3><span className="plus" aria-hidden="true">+</span> Add a frame</h3>
-            {data.galleries.length === 0 && <p className="muted small">Tip: make a gallery first, so the frame has something to show.</p>}
+            {data.galleries.length === 0 && <p className="hint">Tip: make an album first, so the frame has something to show.</p>}
             <AddFrameForm
               compact
               galleries={data.galleries}
@@ -113,34 +132,31 @@ export default function Manage() {
       <section className="section" id="galleries">
         <div className="section-head">
           <div>
-            <h2 className="display">Galleries</h2>
-            <p className="muted small">Photos and an optional song. Open one to add or reorder photos.</p>
+            <div className="mono">Collections</div>
+            <h2>Albums</h2>
           </div>
+          <span className="hint">Open one to add, caption or reorder photographs.</span>
         </div>
         <div className="gallery-grid">
-          <form className="add-tile new-gallery" onSubmit={newGallery}>
-            <h3><span className="plus" aria-hidden="true">+</span> New gallery</h3>
-            <label className="field">
-              <span>Name it</span>
-              <input name="name" placeholder="Christmas 2025" maxLength={80} required />
-            </label>
-            <button className="btn btn-red" type="submit">Create and add photos</button>
-          </form>
           {data.galleries.map((g, i) => {
             const frames = inFrames(g)
             const queued = data.schedules.some((s) => s.gallery_id === g.id)
             return (
               <article key={g.id} className="gallery-card">
-                <Link to={`/gallery/${g.id}`} className="gallery-cover" style={{ background: TONES[i % TONES.length] }} aria-label={`Open ${g.name}`}>
-                  {g.cover && <img src={g.cover} alt="" loading="lazy" />}
-                  <span className="count-pill">{photoCount(g.count)}{g.music_url ? ' · ♪' : ''}</span>
+                <Link to={`/gallery/${g.id}`} aria-label={`Open ${g.name}`}>
+                  <TapedPhoto className="gallery-cover" src={g.cover} index={i} label={`album · ${g.name}`} />
                 </Link>
                 <div className="gallery-body">
-                  <Link to={`/gallery/${g.id}`} className="g-title display">{g.name}</Link>
+                  <div className="card-meta">
+                    <span className="tag">Album</span>
+                    <span className="mono">{photoCount(g.count)}{g.music_url ? ' · ♪' : ''}</span>
+                  </div>
+                  <Link to={`/gallery/${g.id}`} className="g-title">{g.name}</Link>
+                  {g.caption && <div className="frame-sub">{g.caption}</div>}
                   {frames.length ? (
-                    <span className="status ok">In {frames.map((f) => f.room).join(', ')}</span>
+                    <span className="status ok">Hanging in {frames.map((f) => f.room).join(', ')}</span>
                   ) : queued ? (
-                    <span className="status ok">Scheduled</span>
+                    <span className="status ok">Scheduled for a frame</span>
                   ) : (
                     <span className="status warn">
                       Not in a frame yet · <Link to={`/gallery/${g.id}#put-in-frame`}>Put it in one</Link>
@@ -150,6 +166,14 @@ export default function Manage() {
               </article>
             )
           })}
+          <form className="add-tile new-gallery" onSubmit={newGallery}>
+            <h3><span className="plus" aria-hidden="true">+</span> New album</h3>
+            <label className="field">
+              <span>Name it</span>
+              <input name="name" placeholder="Christmas 2025" maxLength={80} required />
+            </label>
+            <button className="btn" type="submit">Create and add photographs</button>
+          </form>
         </div>
       </section>
     </div>
@@ -158,7 +182,7 @@ export default function Manage() {
 
 function FrameCard(props: {
   frame: Frame
-  tone: string
+  index: number
   galleries: Gallery[]
   current?: Gallery
   schedules: Schedule[]
@@ -166,9 +190,14 @@ function FrameCard(props: {
   today: string
   act: (op: string, body: unknown) => Promise<void>
 }) {
-  const { frame, tone, galleries, current, schedules, byId, today, act } = props
+  const { frame, index, galleries, current, schedules, byId, today, act } = props
   const [panel, setPanel] = useState<'none' | 'schedule' | 'rename'>('none')
+  const [qr, setQr] = useState('')
   const next = schedules.find((s) => s.starts_on > today)
+
+  useEffect(() => {
+    QRCode.toDataURL(frameUrl(frame.slug), { margin: 0, width: 200, color: { dark: '#2a211a', light: '#f3ebdb' } }).then(setQr).catch(() => {})
+  }, [frame.slug])
 
   async function addSchedule(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -186,15 +215,15 @@ function FrameCard(props: {
 
   return (
     <article className="frame-card">
-      <div className="frame-art" style={{ background: tone }}>
-        {current?.cover && <img src={current.cover} alt="" loading="lazy" />}
-        <span className="room-pill">{frame.room}</span>
-        <div className="now">
-          <span className="now-label">{current ? 'NOW SHOWING' : 'SHOWING'}</span>
-          <span className="now-name display">{current ? current.name : 'Nothing yet'}</span>
-        </div>
-      </div>
+      <TapedPhoto className="frame-art" src={current?.cover} index={index} label={current ? `album · ${current.name}` : 'nothing showing yet'} />
       <div className="frame-body">
+        <div className="card-meta">
+          <span className="tag">Frame</span>
+          <span className="mono">{current ? photoCount(current.count) : 'empty'}{current?.music_url ? ' · ♪' : ''}</span>
+        </div>
+        <h3 className="frame-title">{frame.room}</h3>
+        <div className="frame-sub">{current ? <>Now showing <em>{current.name}</em></> : 'Not showing anything yet'}</div>
+
         <label className="field">
           <span>Shows</span>
           <select value={frame.gallery_id ?? ''} onChange={(e) => act('frame-set', { id: frame.id, gallery_id: e.target.value || null })}>
@@ -203,19 +232,17 @@ function FrameCard(props: {
           </select>
         </label>
 
-        {current && frame.gallery_id !== current.id && (
-          <div className="next">On schedule today: {current.name}</div>
-        )}
+        {current && frame.gallery_id !== current.id && <div className="next">On the schedule today: {current.name}</div>}
         {next && (
           <div className="next">
             <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
-            Switches to {byId.get(next.gallery_id)?.name || 'a gallery'} on {niceDate(next.starts_on)}
+            Switches to {byId.get(next.gallery_id)?.name || 'an album'} on {niceDate(next.starts_on)}
           </div>
         )}
 
         <div className="frame-actions">
-          <Link className="btn btn-light" to={`/print?frame=${encodeURIComponent(frame.slug)}`}>Print code</Link>
-          <a className="btn btn-ghost-dark" href={`/frames/f/${frame.slug}`} target="_blank" rel="noreferrer">Play</a>
+          <Link className="btn" to={`/print?frame=${encodeURIComponent(frame.slug)}`}>Print code</Link>
+          <a className="btn ghost" href={`/frames/f/${frame.slug}`} target="_blank" rel="noreferrer">▶ Play</a>
         </div>
 
         {panel === 'schedule' ? (
@@ -224,7 +251,7 @@ function FrameCard(props: {
             <label className="field">
               <span>Show</span>
               <select name="gallery_id" required defaultValue="">
-                <option value="" disabled>Choose a gallery</option>
+                <option value="" disabled>Choose an album</option>
                 {galleries.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
               </select>
             </label>
@@ -234,8 +261,8 @@ function FrameCard(props: {
             </div>
             <p className="hint">Afterwards it goes back to “{frame.gallery_id ? byId.get(frame.gallery_id)?.name : 'Nothing'}”.</p>
             <div className="row">
-              <button className="btn btn-light grow" type="submit">Add to schedule</button>
-              <button className="btn btn-ghost-dark" type="button" onClick={() => setPanel('none')}>Cancel</button>
+              <button className="btn grow" type="submit">Add to schedule</button>
+              <button className="btn ghost" type="button" onClick={() => setPanel('none')}>Cancel</button>
             </div>
           </form>
         ) : panel === 'rename' ? (
@@ -243,8 +270,8 @@ function FrameCard(props: {
             <label className="field"><span>Frame name</span><input name="room" defaultValue={frame.room} maxLength={60} required /></label>
             <p className="hint">Its printed code keeps working.</p>
             <div className="row">
-              <button className="btn btn-light grow" type="submit">Save</button>
-              <button className="btn btn-ghost-dark" type="button" onClick={() => setPanel('none')}>Cancel</button>
+              <button className="btn grow" type="submit">Save</button>
+              <button className="btn ghost" type="button" onClick={() => setPanel('none')}>Cancel</button>
             </div>
           </form>
         ) : null}
@@ -254,7 +281,7 @@ function FrameCard(props: {
             {schedules.map((s) => (
               <li key={s.id}>
                 <span>
-                  {byId.get(s.gallery_id)?.name || 'Gallery'} · {niceDate(s.starts_on)}
+                  {byId.get(s.gallery_id)?.name || 'Album'} · {niceDate(s.starts_on)}
                   {s.ends_on ? ` – ${niceDate(s.ends_on)}` : ' onward'}
                 </span>
                 <button type="button" className="link-btn" onClick={() => act('schedule-delete', { id: s.id })} aria-label={`Remove ${byId.get(s.gallery_id)?.name} from the schedule`}>Remove</button>
@@ -263,17 +290,23 @@ function FrameCard(props: {
           </ul>
         )}
 
-        <div className="row tiny-actions">
-          {panel === 'none' && galleries.length > 0 && <button type="button" className="link-btn" onClick={() => setPanel('schedule')}>Schedule a change</button>}
-          <span className="grow" />
-          <button type="button" className="link-btn" onClick={() => setPanel(panel === 'rename' ? 'none' : 'rename')}>Rename</button>
-          <button
-            type="button"
-            className="link-btn danger"
-            onClick={() => { if (confirm(`Delete the "${frame.room}" frame? Its printed QR code will stop working.`)) act('frame-delete', { id: frame.id }) }}
-          >
-            Delete
-          </button>
+        <div className="frame-foot">
+          <div>
+            <div className="mono">scan to view</div>
+            <div className="mono">/f/{frame.slug}</div>
+            <div className="row tiny-actions">
+              {panel === 'none' && galleries.length > 0 && <button type="button" className="link-btn" onClick={() => setPanel('schedule')}>Schedule</button>}
+              <button type="button" className="link-btn" onClick={() => setPanel(panel === 'rename' ? 'none' : 'rename')}>Rename</button>
+              <button
+                type="button"
+                className="link-btn danger"
+                onClick={() => { if (confirm(`Delete the "${frame.room}" frame? Its printed QR code will stop working.`)) act('frame-delete', { id: frame.id }) }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+          <div className="mini-qr">{qr && <img src={qr} alt={`QR code for ${frame.room}`} />}</div>
         </div>
       </div>
     </article>

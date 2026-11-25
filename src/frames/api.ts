@@ -40,3 +40,18 @@ export async function api<T>(op: string, opts: { body?: unknown; query?: Record<
 export function frameUrl(slug: string) {
   return `${window.location.origin}/frames/f/${slug}`
 }
+
+export const FAMILY_NAME = 'The Sosa Family Archive'
+
+// Photos are served resized by Vercel's image service (allowed in vercel.json),
+// so phones download a phone-sized copy instead of the full original.
+// The local dev server has no image service, so it uses the originals.
+const RESIZE = typeof window !== 'undefined' && !/^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname)
+export type ImgWidth = 640 | 1080 | 1920
+export function img(src: string, w: ImgWidth) {
+  return RESIZE ? `/_vercel/image?url=${encodeURIComponent(src)}&w=${w}&q=75` : src
+}
+/** Width that looks sharp full screen on this device. */
+export function screenWidth(): ImgWidth {
+  return window.innerWidth * (window.devicePixelRatio || 1) > 1200 ? 1920 : 1080
+}
