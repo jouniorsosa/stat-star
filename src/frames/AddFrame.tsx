@@ -92,8 +92,8 @@ export function FrameReady({ frame, onDone }: { frame: NewFrame; onDone?: () => 
 /** The three steps, with a tick on each one that is done. */
 export function Steps({ galleries, frames }: { galleries: number; frames: number }) {
   const steps = [
-    { n: 1, title: 'Make a gallery', body: 'Upload the photos for one story. Add a song if you like.', done: galleries > 0, href: '#galleries' },
-    { n: 2, title: 'Put it in a frame', body: 'A frame is a spot in your house. Pick which gallery it shows.', done: frames > 0, href: '#frames' },
+    { n: 1, title: 'Make an album', body: 'Upload the photographs for one story. Add a song if you like.', done: galleries > 0, href: '#galleries' },
+    { n: 2, title: 'Put it in a frame', body: 'A frame is a spot on your wall. Pick which album it shows.', done: frames > 0, href: '#frames' },
     { n: 3, title: 'Print the code', body: 'One QR card per frame. Print it once; swap what it plays any time.', done: false, href: '/frames/print' },
   ]
   const next = steps.find((s) => !s.done)?.n ?? 3

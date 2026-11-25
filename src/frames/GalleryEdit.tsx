@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { upload } from '@vercel/blob/client'
-import { API, api, type Gallery, type Photo } from './api'
+import { API, api, img, type Gallery, type Photo } from './api'
 import { AddFrameForm, FrameReady, type NewFrame } from './AddFrame'
 
 type GalleryData = { gallery: Gallery; photos: Photo[]; usedBy: { room: string; slug: string }[] }
@@ -109,11 +109,11 @@ export default function GalleryEdit() {
 
   return (
     <div className={'wrap editor' + (data.photos.length ? '' : ' empty')}>
-      <div className="crumbs"><Link to="/#manage">← All frames and galleries</Link></div>
+      <div className="crumbs"><Link to="/#manage">← Archive</Link></div>
 
       <form className="card details" onSubmit={saveDetails} key={g.id + g.name + g.caption}>
         <div className="row">
-          <label className="field grow"><span>Gallery name</span><input name="name" defaultValue={g.name} maxLength={80} required /></label>
+          <label className="field grow"><span>Album name</span><input name="name" defaultValue={g.name} maxLength={80} required /></label>
           <label className="field grow"><span>A line shown on the slideshow (optional)</span><input name="caption" defaultValue={g.caption} maxLength={300} placeholder="Summer 2019 · Cape Cod" /></label>
           <button className="btn btn-light" type="submit">Save</button>
         </div>
@@ -128,7 +128,7 @@ export default function GalleryEdit() {
         <section id="put-in-frame" className="card frame-status ok">
           <div className="grow">
             <h3>Showing in {data.usedBy.map((u) => u.room).join(', ')}</h3>
-            <p className="muted small">Anyone who scans {data.usedBy.length > 1 ? 'those frames' : 'that frame'} sees this gallery.</p>
+            <p className="muted small">Anyone who scans {data.usedBy.length > 1 ? 'those frames' : 'that frame'} sees this album.</p>
           </div>
           <div className="row">
             {data.usedBy.map((u) => (
@@ -140,7 +140,7 @@ export default function GalleryEdit() {
         <section id="put-in-frame" className="card frame-status warn">
           <div className="frame-status-copy">
             <span className="badge-warn">Next step</span>
-            <h3>Put this gallery in a frame</h3>
+            <h3>Put this album in a frame</h3>
             <p className="muted">Nobody can scan it until it is. A frame is a spot in your house; it gets a QR code you print once.</p>
           </div>
           <AddFrameForm compact galleries={[]} galleryId={g.id} lockGallery onAdded={async (f) => { setReady(f); await load() }} />
@@ -170,9 +170,9 @@ export default function GalleryEdit() {
         onDragLeave={() => setDragOver(false)}
         onDrop={(e) => { if (e.dataTransfer.files.length) { e.preventDefault(); setDragOver(false); addFiles(e.dataTransfer.files) } }}
       >
-        <p className="display">Drop photos here</p>
+        <p className="display">Drop photographs here</p>
         <p className="muted">or</p>
-        <button type="button" className="btn btn-red" onClick={() => fileInput.current?.click()}>Choose photos</button>
+        <button type="button" className="btn btn-red" onClick={() => fileInput.current?.click()}>Choose photographs</button>
         <input ref={fileInput} type="file" accept="image/*" multiple hidden onChange={(e) => { if (e.target.files) addFiles(e.target.files); e.target.value = '' }} />
         {progress && (
           <p role="status" className="progress">
@@ -198,7 +198,7 @@ export default function GalleryEdit() {
             onDragOver={(e) => { if (dragId !== null) e.preventDefault() }}
             onDrop={(e) => { e.preventDefault(); dropOn(p.id) }}
           >
-            <img src={p.url} alt={p.caption || `Photo ${i + 1}`} loading="lazy" />
+            <img src={img(p.url, 640)} alt={p.caption || `Photo ${i + 1}`} loading="lazy" />
             <span className="num">{i + 1}</span>
             <figcaption>
               <input
@@ -229,7 +229,7 @@ export default function GalleryEdit() {
             navigate('/')
           }}
         >
-          Delete this gallery
+          Delete this album
         </button>
       </div>
     </div>
