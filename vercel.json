@@ -1,5 +1,7 @@
 {
   "redirects": [
+    { "source": "/teams", "destination": "/stat-star/teams", "permanent": false },
+    { "source": "/schedule", "destination": "/stat-star/schedule", "permanent": false },
     { "source": "/teams/:path*", "destination": "/stat-star/teams/:path*", "permanent": false },
     { "source": "/schedule/:path*", "destination": "/stat-star/schedule/:path*", "permanent": false },
     { "source": "/game/:path*", "destination": "/stat-star/game/:path*", "permanent": false },
