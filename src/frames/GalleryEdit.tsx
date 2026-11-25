@@ -153,7 +153,7 @@ export default function GalleryEdit() {
       </section>
 
       <div className="section-head">
-        <h2 className="display">{data.photos.length} photos</h2>
+        <h2 className="display">{data.photos.length} photo{data.photos.length === 1 ? '' : 's'}</h2>
         <span className="muted small">Drag to reorder, or use the arrows</span>
       </div>
       <div className="photo-grid">

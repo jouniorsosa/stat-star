@@ -3,7 +3,11 @@ import { Link, useNavigate } from 'react-router-dom'
 import { api, type Frame, type Gallery, type Overview, type Schedule } from './api'
 import { useSession } from './session'
 
-const TONES = ['#5B3A29', '#1F4B55', '#4A3F6B', '#3B5230', '#5C2B3B', '#5A4A1E', '#2E4466', '#6B2A22']
+function photos(n?: number) {
+  return `${n ?? 0} photo${n === 1 ? '' : 's'}`
+}
+
+const TONES =['#5B3A29', '#1F4B55', '#4A3F6B', '#3B5230', '#5C2B3B', '#5A4A1E', '#2E4466', '#6B2A22']
 
 function niceDate(d: string) {
   const [y, m, day] = d.split('-').map(Number)
@@ -129,7 +133,7 @@ export default function Manage() {
                   {g.cover && <img src={g.cover} alt="" loading="lazy" />}
                 </span>
                 <span className="g-name display">{g.name}</span>
-                <span className="muted">{g.count} photos</span>
+                <span className="muted">{photos(g.count)}</span>
                 <span className="muted">{g.music_url ? 'With music' : 'No music'}</span>
                 <span className="muted">{using ? `Showing in ${using} frame${using > 1 ? 's' : ''}` : queued ? 'Scheduled' : 'Not showing'}</span>
                 <span className="open">Open →</span>
@@ -183,7 +187,7 @@ function FrameCard(props: {
       </div>
       <div className="frame-body">
         <div className="meta">
-          {current ? <>{current.count} photos · {current.music_url ? 'With music' : 'No music'}</> : 'Pick a gallery below'}
+          {current ? <>{photos(current.count)} ·{current.music_url ? 'With music' : 'No music'}</> : 'Pick a gallery below'}
         </div>
         {next && (
           <div className="next">
