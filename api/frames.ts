@@ -212,7 +212,7 @@ async function handle(req: Request): Promise<Response> {
       const g = (await sql`select id, name, caption, music_url, music_name from galleries where id = ${id}`)[0]
       if (!g) throw new HttpError(404, 'Gallery not found')
       const photos = await sql`select id, url, caption, position from photos where gallery_id = ${id} order by position, id`
-      const used = await sql`select room from frames where gallery_id = ${id} order by room`
+      const used = await sql`select room, slug from frames where gallery_id = ${id} order by room`
       return json({ gallery: g, photos, usedBy: used })
     }
 

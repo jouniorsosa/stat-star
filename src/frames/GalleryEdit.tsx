@@ -2,8 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { upload } from '@vercel/blob/client'
 import { API, api, type Gallery, type Photo } from './api'
+import { AddFrameForm, FrameReady, type NewFrame } from './AddFrame'
 
-type GalleryData = { gallery: Gallery; photos: Photo[]; usedBy: { room: string }[] }
+type GalleryData = { gallery: Gallery; photos: Photo[]; usedBy: { room: string; slug: string }[] }
 
 function safeName(name: string) {
   return name.replace(/[^\w.-]+/g, '-').slice(-80) || 'file'
@@ -18,6 +19,7 @@ export default function GalleryEdit() {
   const [progress, setProgress] = useState<{ done: number; total: number; failed: number } | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const [dragId, setDragId] = useState<number | null>(null)
+  const [ready, setReady] = useState<NewFrame | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const musicInput = useRef<HTMLInputElement>(null)
 
@@ -29,6 +31,11 @@ export default function GalleryEdit() {
     }
   }, [gid])
   useEffect(() => { load() }, [load])
+
+  // Arriving from "Put it in one" on the manage screen jumps straight to the frame box.
+  useEffect(() => {
+    if (data && window.location.hash === '#put-in-frame') document.getElementById('put-in-frame')?.scrollIntoView({ block: 'center' })
+  }, [data])
 
   async function addFiles(files: FileList | File[]) {
     const list = Array.from(files).filter((f) => f.type.startsWith('image/'))
@@ -101,7 +108,7 @@ export default function GalleryEdit() {
   const g = data.gallery
 
   return (
-    <div className="wrap editor">
+    <div className={'wrap editor' + (data.photos.length ? '' : ' empty')}>
       <div className="crumbs"><Link to="/#manage">← All frames and galleries</Link></div>
 
       <form className="card details" onSubmit={saveDetails} key={g.id + g.name + g.caption}>
@@ -111,10 +118,34 @@ export default function GalleryEdit() {
           <button className="btn btn-light" type="submit">Save</button>
         </div>
         <p className="muted small">
-          {data.usedBy.length ? `Usually shown in: ${data.usedBy.map((u) => u.room).join(', ')}.` : 'Not set as the usual gallery for any frame yet.'}{' '}
           <Link to={`/preview/${g.id}`}>Preview the slideshow</Link>
         </p>
       </form>
+
+      {ready && <FrameReady frame={ready} onDone={() => setReady(null)} />}
+
+      {data.usedBy.length > 0 ? (
+        <section id="put-in-frame" className="card frame-status ok">
+          <div className="grow">
+            <h3>Showing in {data.usedBy.map((u) => u.room).join(', ')}</h3>
+            <p className="muted small">Anyone who scans {data.usedBy.length > 1 ? 'those frames' : 'that frame'} sees this gallery.</p>
+          </div>
+          <div className="row">
+            {data.usedBy.map((u) => (
+              <Link key={u.slug} className="btn btn-light" to={`/print?frame=${encodeURIComponent(u.slug)}`}>Print {u.room} code</Link>
+            ))}
+          </div>
+        </section>
+      ) : (
+        <section id="put-in-frame" className="card frame-status warn">
+          <div className="frame-status-copy">
+            <span className="badge-warn">Next step</span>
+            <h3>Put this gallery in a frame</h3>
+            <p className="muted">Nobody can scan it until it is. A frame is a spot in your house; it gets a QR code you print once.</p>
+          </div>
+          <AddFrameForm compact galleries={[]} galleryId={g.id} lockGallery onAdded={async (f) => { setReady(f); await load() }} />
+        </section>
+      )}
 
       <section className="card music">
         <div>
