@@ -31,6 +31,10 @@ export default function App() {
         {!isLiveGame && (
           <nav className="bg-gradient-to-r from-[#0f1018] to-[#131320] border-b border-white/5 sticky top-0 z-50 backdrop-blur-xl">
             <div className="max-w-6xl mx-auto px-4 flex items-center h-16 gap-1 overflow-x-auto">
+              {/* Plain link, not a router Link: it leaves the app for the site front page. */}
+              <a href="/" className="px-3 py-2 mr-2 rounded-xl text-sm font-semibold text-gray-500 hover:text-gray-200 hover:bg-white/5 transition-all duration-200 shrink-0">
+                &larr; All projects
+              </a>
               <Link to="/" className="flex items-center gap-2 mr-4 shrink-0 group">
                 <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center text-white font-black text-sm shadow-lg shadow-orange-500/20 group-hover:shadow-orange-500/40 transition-shadow">
                   BB
