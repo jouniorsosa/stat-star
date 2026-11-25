@@ -10,6 +10,7 @@
     { "source": "/seasons", "destination": "/stat-star/seasons", "permanent": false }
   ],
   "rewrites": [
-    { "source": "/stat-star/:path*", "destination": "/stat-star/index.html" }
+    { "source": "/stat-star/:path*", "destination": "/stat-star/index.html" },
+    { "source": "/frames/:path*", "destination": "/frames/index.html" }
   ]
 }

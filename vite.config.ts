@@ -11,6 +11,7 @@ export default defineConfig({
       input: {
         home: resolve(import.meta.dirname, 'index.html'),
         statStar: resolve(import.meta.dirname, 'stat-star/index.html'),
+        frames: resolve(import.meta.dirname, 'frames/index.html'),
       },
     },
   },
