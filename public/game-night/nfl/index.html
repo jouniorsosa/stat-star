@@ -238,6 +238,11 @@ tr.tot td{border-top:1px solid var(--line);color:var(--muted);font-weight:600}
 .sp img{width:22px;height:22px;object-fit:contain}
 .sp b{display:block;font-weight:600;color:var(--text);font-size:13px;letter-spacing:.04em}
 .sp .s{font-weight:700;color:var(--text);white-space:nowrap;font-size:14px}
+
+/* wide line scores scroll inside their box instead of widening the page */
+.lines{overflow-x:auto;justify-content:flex-start;-webkit-overflow-scrolling:touch}
+.lines table{margin:0 auto}
+@media (max-width:640px){.lines th,.lines td{padding:0 7px}}
 </style>
 </head>
 <body>

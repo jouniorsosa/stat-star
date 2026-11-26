@@ -192,6 +192,11 @@ td.pf.out{color:#FF6B6B;font-weight:700}
   .side.away .pts{margin-left:auto;margin-right:0;padding:0}
   .side.home .pts{padding:0}
 }
+
+/* wide line scores scroll inside their box instead of widening the page */
+.lines{overflow-x:auto;justify-content:flex-start;-webkit-overflow-scrolling:touch}
+.lines table{margin:0 auto}
+@media (max-width:640px){.lines th,.lines td{padding:0 7px}}
 </style>
 </head>
 <body>
