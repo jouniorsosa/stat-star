@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { api, ApiError, img, screenWidth, type PlayData } from './api'
+import { api, ApiError, img, isVideo, screenWidth, type PlayData } from './api'
 
 const SPEEDS = { slow: 9000, normal: 6000, fast: 3500 } as const
 type Speed = keyof typeof SPEEDS
@@ -22,6 +22,7 @@ export default function Play({ preview = false }: { preview?: boolean }) {
   const audio = useRef<HTMLAudioElement>(null)
   const idleTimer = useRef<number | undefined>(undefined)
   const touchX = useRef<number | null>(null)
+  const video = useRef<HTMLVideoElement | null>(null)
 
   useEffect(() => {
     ;(async () => {
@@ -44,6 +45,7 @@ export default function Play({ preview = false }: { preview?: boolean }) {
   const hasMusic = !!data?.gallery?.music_url
   const ready = count > 0 && (started || !hasMusic)
   const duration = SPEEDS[speed]
+  const onVideo = count > 0 && isVideo(photos[idx % count].url)
 
   // show the controls, then fade them after a few quiet seconds
   const wake = useCallback(() => {
@@ -60,23 +62,42 @@ export default function Play({ preview = false }: { preview?: boolean }) {
 
   // advance
   useEffect(() => {
-    if (!ready || !playing || count < 2) return
+    if (!ready || !playing || count < 2 || onVideo) return
     const t = window.setTimeout(() => setIdx((i) => (i + (reverse ? -1 : 1) + count) % count), duration)
     return () => window.clearTimeout(t)
-  }, [ready, playing, reverse, duration, idx, count])
+  }, [ready, playing, reverse, duration, idx, count, onVideo])
+
+  // A video plays through with its own sound; if the browser refuses sound before a tap, it plays muted.
+  useEffect(() => {
+    const v = video.current
+    // a video that slid off screen must not keep talking underneath
+    root.current?.querySelectorAll('video').forEach((el) => { if (el !== v) el.pause() })
+    if (!v || !onVideo) return
+    if (!ready || !playing) { v.pause(); return }
+    v.muted = false
+    v.play().catch(() => { v.muted = true; v.play().catch(() => {}) })
+  }, [onVideo, ready, playing, idx])
+
+  const videoEnded = useCallback(() => {
+    if (count < 2) { video.current?.play().catch(() => {}); return }
+    setIdx((i) => (i + (reverse ? -1 : 1) + count) % count)
+  }, [count, reverse])
 
   // preload neighbours
   useEffect(() => {
-    if (count > 1) for (const k of [1, -1]) { const pre = new Image(); pre.src = img(photos[(idx + k + count) % count].url, screenWidth()) }
+    if (count > 1) for (const k of [1, -1]) {
+      const url = photos[(idx + k + count) % count].url
+      if (!isVideo(url)) { const pre = new Image(); pre.src = img(url, screenWidth()) }
+    }
   }, [idx, count, photos])
 
   // music follows play/pause and the music button
   useEffect(() => {
     const a = audio.current
     if (!a || !started) return
-    if (playing && musicOn) a.play().catch(() => {})
+    if (playing && musicOn && !onVideo) a.play().catch(() => {})
     else a.pause()
-  }, [playing, musicOn, started])
+  }, [playing, musicOn, started, onVideo])
 
   const canFullscreen = typeof document !== 'undefined' && !!document.fullscreenEnabled
   const toggleFullscreen = useCallback(() => {
@@ -133,7 +154,16 @@ export default function Play({ preview = false }: { preview?: boolean }) {
         const near = i === idx || i === (idx + 1) % count || i === (idx - 1 + count) % count
         return (
           <div key={p.id} className={`slide kb${i % 4}` + (i === idx ? ' on' : '')} aria-hidden={i !== idx}>
-            {near && <img src={img(p.url, screenWidth())} alt={i === idx ? p.caption || `${g.name}, photograph ${i + 1}` : ''} />}
+            {near && (isVideo(p.url)
+              ? <video
+                  ref={i === idx ? video : undefined}
+                  src={p.url}
+                  playsInline
+                  preload={i === idx ? 'auto' : 'metadata'}
+                  aria-label={i === idx ? p.caption || `${g.name}, video ${i + 1}` : undefined}
+                  onEnded={i === idx ? videoEnded : undefined}
+                />
+              : <img src={img(p.url, screenWidth())} alt={i === idx ? p.caption || `${g.name}, photograph ${i + 1}` : ''} />)}
           </div>
         )
       })}
@@ -200,7 +230,7 @@ export default function Play({ preview = false }: { preview?: boolean }) {
           <div className="p-progress">
             <div className="p-track">
               <div className="p-fill" style={{ width: `${progress}%` }} />
-              <div key={`${idx}-${playing}-${speed}`} className={'p-tick' + (playing && ready ? ' run' : '')} />
+              <div key={`${idx}-${playing}-${speed}`} className={'p-tick' + (playing && ready && !onVideo ? ' run' : '')} />
             </div>
           </div>
 
