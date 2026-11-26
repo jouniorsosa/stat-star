@@ -15,6 +15,11 @@ export type PlayData = { frame: { room: string }; gallery: Gallery | null; photo
 
 export const API = '/api/frames'
 
+/** Videos live in the same list as photos; the file extension tells them apart. */
+export function isVideo(url: string) {
+  return /\.(mp4|mov|m4v|webm)$/i.test(url.split('?')[0])
+}
+
 export class ApiError extends Error {
   status: number
   constructor(status: number, message: string) {

@@ -155,7 +155,7 @@ async function overview() {
   const galleries = await sql`
     select g.id, g.name, g.caption, g.music_url, g.music_name,
       (select count(*)::int from photos p where p.gallery_id = g.id) as count,
-      (select url from photos p where p.gallery_id = g.id order by position, id limit 1) as cover
+      (select url from photos p where p.gallery_id = g.id and p.url !~* '\.(mp4|mov|m4v|webm)$' order by position, id limit 1) as cover
     from galleries g order by g.created_at desc, g.id desc`
   const frames = (await sql`select id, slug, room, gallery_id from frames order by created_at, id`) as { id: number; slug: string; room: string; gallery_id: number | null }[]
   const schedules = await sql`select id, frame_id, gallery_id, to_char(starts_on, 'YYYY-MM-DD') as starts_on, to_char(ends_on, 'YYYY-MM-DD') as ends_on
@@ -195,8 +195,10 @@ async function handle(req: Request): Promise<Response> {
       body: uploadBody,
       request: req,
       onBeforeGenerateToken: async () => ({
-        allowedContentTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/heic', 'image/heif', 'audio/mpeg', 'audio/mp4', 'audio/x-m4a', 'audio/aac', 'audio/wav', 'audio/ogg'],
-        maximumSizeInBytes: 40 * 1024 * 1024,
+        allowedContentTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/heic', 'image/heif', 'audio/mpeg', 'audio/mp4', 'audio/x-m4a', 'audio/aac', 'audio/wav', 'audio/ogg',
+          'video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v'],
+        // Videos from a phone run large; photos and songs stay far below this.
+        maximumSizeInBytes: 500 * 1024 * 1024,
         addRandomSuffix: true,
       }),
     })
