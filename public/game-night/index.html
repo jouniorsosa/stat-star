@@ -82,6 +82,22 @@ h1 span{color:var(--warn)}
       <svg class="ball" viewBox="0 0 24 24" fill="none" stroke="#4FB3FF" stroke-width="1.2" stroke-linecap="round" aria-hidden="true"><path d="M4.5 19.5C1.6 12.6 6.3 4.8 19.5 4.5c.3 13.2-7.5 17.9-15 15z"/><path d="M8.5 15.5l7-7M10 11.5l2.5 2.5M11.8 9.7l2.5 2.5M13.6 7.9l2.5 2.5"/></svg>
     </a>
 
+    <a class="sport" href="/game-night/mlb/" style="--c:#3DDC84" data-league="baseball/mlb">
+      <span class="go" aria-hidden="true">→</span>
+      <div class="name">MLB</div>
+      <div class="what">Inning by inning, runners on base, the count and outs, batting and pitching lines, and every game day by day.</div>
+      <div class="now" aria-live="polite"></div>
+      <svg class="ball" viewBox="0 0 24 24" fill="none" stroke="#3DDC84" stroke-width="1.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M6.2 4.3c2.4 2.2 3.4 5 3.4 7.7s-1 5.5-3.4 7.7M17.8 4.3c-2.4 2.2-3.4 5-3.4 7.7s1 5.5 3.4 7.7"/></svg>
+    </a>
+
+    <a class="sport" href="/game-night/ufc/" style="--c:#FF5A5F" data-league="mma/ufc">
+      <span class="go" aria-hidden="true">→</span>
+      <div class="name">UFC</div>
+      <div class="what">The full fight card for every event, live rounds, winners and how they won, and strike and takedown stats for each fight.</div>
+      <div class="now" aria-live="polite"></div>
+      <svg class="ball" viewBox="0 0 24 24" fill="none" stroke="#FF5A5F" stroke-width="1.2" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-6 9 6v6l-9 6-9-6z"/><path d="M3 9l9 6 9-6M12 15v6"/></svg>
+    </a>
+
     <div class="sport soon" aria-label="More sports coming later">
       <div class="name">More soon</div>
       <div class="what">Other leagues will show up here as they're added.</div>
@@ -119,12 +135,21 @@ h1 span{color:var(--warn)}
         var bits = [];
         if (live) bits.push('<span class="live">' + live + ' live now</span>');
         if (d.week && d.week.number && card.dataset.league === 'football/nfl') bits.push('Week ' + d.week.number);
+        var ufc = card.dataset.league === 'mma/ufc';
+        var stale = d.day && d.day.date && (Date.now() - new Date(d.day.date + 'T12:00:00')) > 5 * 86400000;
         if (!live && next) {
           var t = new Date(next.date);
-          bits.push('Next: ' + next.shortName.replace(/</g, '') + ', ' +
-            t.toLocaleDateString([], { weekday: 'short' }) + ' ' + t.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }));
-        } else if (!live && !evs.length) bits.push('No games scheduled');
-        out.innerHTML = bits.join(' · ');
+          bits.push('Next: ' + (ufc ? next.name : next.shortName) + ', ' +
+            (ufc ? t.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })
+                 : t.toLocaleDateString([], { weekday: 'short' }) + ' ' + t.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })));
+        } else if (!live && stale) bits.push('Offseason · back in the spring');
+        else if (!live && !evs.length) bits.push('No games scheduled');
+        out.textContent = '';
+        bits.forEach(function (b, i) {
+          if (i) out.appendChild(document.createTextNode(' · '));
+          if (b.indexOf('<span') === 0) { var s = document.createElement('span'); s.className = 'live'; s.textContent = live + ' live now'; out.appendChild(s); }
+          else out.appendChild(document.createTextNode(b));
+        });
       }).catch(function () {});
   });
 })();
