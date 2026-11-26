@@ -98,6 +98,14 @@ h1 span{color:var(--warn)}
       <svg class="ball" viewBox="0 0 24 24" fill="none" stroke="#FF5A5F" stroke-width="1.2" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-6 9 6v6l-9 6-9-6z"/><path d="M3 9l9 6 9-6M12 15v6"/></svg>
     </a>
 
+    <a class="sport" href="/game-night/lidom/" style="--c:#F5C400" data-mlb-league="131">
+      <span class="go" aria-hidden="true">→</span>
+      <div class="name">LIDOM</div>
+      <div class="what">Dominican winter baseball: Licey, Águilas, Escogido, Estrellas, Toros and Gigantes. Live innings, box scores and standings.</div>
+      <div class="now" aria-live="polite"></div>
+      <svg class="ball" viewBox="0 0 24 24" fill="none" stroke="#F5C400" stroke-width="1.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M6.2 4.3c2.4 2.2 3.4 5 3.4 7.7s-1 5.5-3.4 7.7M17.8 4.3c-2.4 2.2-3.4 5-3.4 7.7s1 5.5 3.4 7.7"/></svg>
+    </a>
+
     <div class="sport soon" aria-label="More sports coming later">
       <div class="name">More soon</div>
       <div class="what">Other leagues will show up here as they're added.</div>
@@ -107,6 +115,27 @@ h1 span{color:var(--warn)}
 
 <script>
 (function () {
+  /* winter leagues come from MLB's stats service: look 7 days ahead for what's live or next */
+  function mlbNow(league, out) {
+    var a = new Date(), b = new Date(); b.setDate(b.getDate() + 7);
+    var f = function (d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+    fetch('https://statsapi.mlb.com/api/v1/schedule?sportId=17&leagueId=' + encodeURIComponent(league) + '&startDate=' + f(a) + '&endDate=' + f(b) + '&hydrate=team')
+      .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+      .then(function (d) {
+        var gs = [];
+        (d.dates || []).forEach(function (x) { gs = gs.concat(x.games || []); });
+        var live = gs.filter(function (g) { return g.status.abstractGameState === 'Live' && !/warmup|pre-game/i.test(g.status.detailedState); }).length;
+        var next = gs.filter(function (g) { return g.status.abstractGameState === 'Preview'; })[0];
+        out.textContent = '';
+        if (live) { var s = document.createElement('span'); s.className = 'live'; s.textContent = live + ' live now'; out.appendChild(s); return; }
+        if (next) {
+          var t = new Date(next.gameDate);
+          out.textContent = 'Next: ' + (next.teams.away.team.abbreviation || next.teams.away.team.teamName) + ' @ ' + (next.teams.home.team.abbreviation || next.teams.home.team.teamName) + ', ' +
+            t.toLocaleDateString([], { weekday: 'short' }) + ' ' + t.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        } else out.textContent = 'Between seasons · back in October';
+      }).catch(function () {});
+  }
+
   /* light follows the pointer, card tilts a touch */
   var still = matchMedia('(prefers-reduced-motion: reduce)').matches;
   [].forEach.call(document.querySelectorAll('a.sport'), function (card) {
@@ -125,6 +154,7 @@ h1 span{color:var(--warn)}
 
     /* what's on right now */
     var out = card.querySelector('.now');
+    if (card.dataset.mlbLeague) { mlbNow(card.dataset.mlbLeague, out); return; }
     fetch('https://site.api.espn.com/apis/site/v2/sports/' + card.dataset.league + '/scoreboard', { cache: 'no-store' })
       .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
       .then(function (d) {
