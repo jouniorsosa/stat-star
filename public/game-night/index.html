@@ -113,6 +113,50 @@ tr.bench-start td{border-top:1px solid var(--line)}
 .lrow span{color:var(--muted)}
 .empty{color:var(--muted);font-size:15px;padding:16px 0}
 
+/* score by quarter */
+.lines{display:flex;justify-content:center;margin-top:14px}
+.lines:empty{display:none}
+.lines table{min-width:0;width:auto}
+.lines th,.lines td{text-align:center;padding:0 12px;height:30px;font-size:15px}
+.lines th:first-child,.lines td:first-child{text-align:left;padding-left:0}
+.lines td.t{font-weight:700;color:var(--text);border-left:1px solid var(--line)}
+.lines td.hi{color:var(--text);font-weight:600}
+.lines .ab{display:flex;align-items:center;gap:8px;font-family:'Barlow Condensed','Arial Narrow',sans-serif;font-weight:600;font-size:17px;color:var(--text)}
+.lines .ab img{width:22px;height:22px;object-fit:contain}
+.chip{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:5px;background:var(--warn);color:#1a1206;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;vertical-align:1px}
+
+/* momentum */
+.flow{margin-top:14px}
+.flow svg{display:block;width:100%;height:96px}
+.flow .q{font-size:11px;color:var(--muted);display:flex;justify-content:space-between;margin-top:4px}
+
+/* fouls in the player table */
+td.pf.warn{color:var(--warn);font-weight:700}
+td.pf.out{color:#FF6B6B;font-weight:700}
+
+/* shot chart */
+.views{margin-left:auto}
+.views button{min-width:96px}
+.shotwrap{display:flex;flex-wrap:wrap;gap:18px;align-items:flex-start}
+.shotwrap svg{flex:1 1 360px;max-width:620px;max-height:62vh;display:block}
+.court{fill:none;stroke:#3a4458;stroke-width:.3}
+.shotside{flex:0 1 220px;display:flex;flex-direction:column;gap:10px;font-size:14px;color:var(--muted)}
+.shotside b{color:var(--text);font-size:20px;font-weight:600;display:block}
+.key{display:flex;gap:14px;align-items:center;font-size:13px}
+.key i{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+.key i.miss{background:none;border:2px solid var(--muted);width:10px;height:10px}
+
+/* matchup */
+.mrow{display:flex;justify-content:space-between;gap:12px;font-size:14px;margin-top:8px}
+.mrow span:first-child{color:var(--muted)}
+.mrow span:last-child{text-align:right;color:var(--text)}
+.inj{margin-top:12px}
+.inj h4{margin:0 0 4px;font-family:'Barlow Condensed','Arial Narrow',sans-serif;font-weight:600;font-size:16px;letter-spacing:.06em;color:var(--soft)}
+.inj div{display:flex;justify-content:space-between;gap:10px;font-size:14px;padding:3px 0;color:var(--soft)}
+.inj div span{color:var(--muted);text-align:right}
+.inj .out{color:#FF8A8A}
+.fine{margin-top:12px;font-size:12px;color:var(--muted);line-height:1.5}
+
 @media (max-width:980px){
   .body{grid-template-columns:1fr}
   .pts{font-size:64px}
@@ -148,6 +192,7 @@ tr.bench-start td{border-top:1px solid var(--line)}
       </div>
     </div>
     <div class="score" id="score"></div>
+    <div class="lines" id="lines"></div>
   </section>
 
   <div class="body">
@@ -158,9 +203,14 @@ tr.bench-start td{border-top:1px solid var(--line)}
             <div class="ttl cond">PLAYERS</div>
             <div class="legend"><span class="dot" aria-hidden="true"></span>On the court now</div>
           </div>
+          <div class="tabs views" id="views" role="group" aria-label="View">
+            <button type="button" data-view="box" aria-pressed="true">Box score</button>
+            <button type="button" data-view="shots" aria-pressed="false">Shot chart</button>
+          </div>
           <div class="tabs" id="tabs"></div>
         </div>
         <div class="tablewrap" id="players"></div>
+        <div id="shots" hidden></div>
       </section>
       <section class="panel">
         <div class="label">Last plays</div>
@@ -171,6 +221,7 @@ tr.bench-start td{border-top:1px solid var(--line)}
       <section class="panel">
         <div class="label">Win chance</div>
         <div id="wp"></div>
+        <div class="flow" id="flow"></div>
       </section>
       <section class="panel grow">
         <div id="cmp"></div>
@@ -178,6 +229,10 @@ tr.bench-start td{border-top:1px solid var(--line)}
       <section class="panel leaders">
         <div class="label">Game leaders</div>
         <div id="leaders"></div>
+      </section>
+      <section class="panel">
+        <div class="label">Matchup</div>
+        <div id="matchup"></div>
       </section>
     </div>
   </div>
@@ -191,6 +246,7 @@ tr.bench-start td{border-top:1px solid var(--line)}
   var wantTeam = (qs.get('team') || '').toUpperCase();
   var side = 'away';        // which team's players are showing
   var sideChosen = false;
+  var view = 'box';         // box score or shot chart
   var buffer = [];          // [{t, data}] recent snapshots, for the TV delay
   var lastOk = 0, failing = false, timer = null;
   var delay = 0;
@@ -310,6 +366,135 @@ tr.bench-start td{border-top:1px solid var(--line)}
     var s = (team.statistics || []).find(function (x) { return x.name === name; });
     return s ? s.displayValue : null;
   }
+  /* ---------- extra pieces ---------- */
+  function secs(clock) {
+    var m = String(clock || '').split(':');
+    return m.length > 1 ? (+m[0]) * 60 + (+m[1]) : +m[0] || 0;
+  }
+  // Team fouls this quarter. Offensive and technical fouls do not count toward the bonus.
+  function teamFouls(plays, period) {
+    var count = {}, late = {};
+    plays.forEach(function (p) {
+      if (!p.period || p.period.number !== period || !p.team) return;
+      var t = (p.type && p.type.text) || '';
+      if (!/foul/i.test(t) || /offensive|technical/i.test(t)) return;
+      count[p.team.id] = (count[p.team.id] || 0) + 1;
+      if (secs(p.clock && p.clock.displayValue) <= 120) late[p.team.id] = (late[p.team.id] || 0) + 1;
+    });
+    return { count: count, late: late };
+  }
+  function tvList(d) {
+    var seen = {};
+    return (d.broadcasts || []).map(function (b) { return (b.media && b.media.shortName) || b.station || ''; })
+      .filter(function (n) { if (!n || seen[n]) return false; seen[n] = 1; return true; }).join(', ');
+  }
+  function pfCell(v) {
+    var n = parseInt(v, 10);
+    if (isNaN(n)) return '<td></td>';
+    if (n >= 6) return '<td class="pf out" title="Fouled out">' + n + '</td>';
+    if (n >= 5) return '<td class="pf warn" title="Foul trouble: one more and he is out">' + n + '</td>';
+    return '<td class="pf">' + n + '</td>';
+  }
+  function linesHTML(home, away) {
+    var hl = home.linescores || [], al = away.linescores || [];
+    var n = Math.max(hl.length, al.length, 4), head = '<th></th>';
+    for (var i = 0; i < n; i++) head += '<th>' + (i < 4 ? i + 1 : (i === 4 ? 'OT' : 'OT' + (i - 3))) + '</th>';
+    head += '<th>T</th>';
+    function row(c, mine, theirs) {
+      var logo = c.team.logos && c.team.logos[0] && c.team.logos[0].href;
+      var cells = '';
+      for (var i = 0; i < n; i++) {
+        var v = mine[i] ? mine[i].displayValue : '', o = theirs[i] ? theirs[i].displayValue : '';
+        cells += '<td' + (v !== '' && +v > +o ? ' class="hi"' : '') + '>' + (v === '' ? '–' : esc(v)) + '</td>';
+      }
+      return '<tr><td><span class="ab">' + (logo ? '<img alt="" src="' + esc(logo) + '">' : '') + esc(c.team.abbreviation) + '</span></td>' +
+        cells + '<td class="t">' + esc(c.score || 0) + '</td></tr>';
+    }
+    return '<table aria-label="Score by quarter"><thead><tr>' + head + '</tr></thead><tbody>' +
+      row(home, hl, al) + row(away, al, hl) + '</tbody></table>';
+  }
+  // Win chance across the whole game: home colour above the middle line, away colour below.
+  function flowHTML(wp, plays, home, away) {
+    if (wp.length < 2) return '';
+    var W = 400, H = 96, mid = H / 2, per = {};
+    plays.forEach(function (p) { if (p.period) per[p.id] = p.period.number; });
+    var pts = wp.map(function (w, i) {
+      return [(i / (wp.length - 1)) * W, mid - (w.homeWinPercentage - 0.5) * (H - 6)];
+    });
+    var line = pts.map(function (q, i) { return (i ? 'L' : 'M') + q[0].toFixed(1) + ',' + q[1].toFixed(1); }).join('');
+    var area = 'M0,' + mid + line.replace(/^M/, 'L') + 'L' + W + ',' + mid + 'Z';
+    var marks = '', lastP = per[wp[0].playId] || 1;
+    wp.forEach(function (w, i) {
+      var pn = per[w.playId];
+      if (pn && pn !== lastP) { marks += '<line x1="' + pts[i][0].toFixed(1) + '" x2="' + pts[i][0].toFixed(1) + '" y1="0" y2="' + H + '" stroke="#3a4458" stroke-dasharray="2 3"/>'; lastP = pn; }
+    });
+    return '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" role="img" aria-label="How the win chance moved during the game">' +
+      '<defs><clipPath id="fTop"><rect width="' + W + '" height="' + mid + '"/></clipPath><clipPath id="fBot"><rect y="' + mid + '" width="' + W + '" height="' + mid + '"/></clipPath></defs>' +
+      marks + '<line x1="0" x2="' + W + '" y1="' + mid + '" y2="' + mid + '" stroke="#3a4458"/>' +
+      '<path d="' + area + '" clip-path="url(#fTop)" style="fill:var(--home);opacity:.35"/>' +
+      '<path d="' + area + '" clip-path="url(#fBot)" style="fill:var(--away);opacity:.35"/>' +
+      '<path d="' + line + '" fill="none" stroke="#F2F4F7" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg>' +
+      '<div class="q"><span>' + esc(home.team.abbreviation) + ' ahead ↑</span><span>Tip-off → now</span><span>↓ ' + esc(away.team.abbreviation) + ' ahead</span></div>';
+  }
+  // ESPN gives every field-goal try a spot in feet on a half court: x across (basket at 25), y out from the basket.
+  function shotsHTML(plays, team, color) {
+    var shots = plays.filter(function (p) {
+      var c = p.coordinate;
+      return p.shootingPlay && (p.pointsAttempted || 0) > 1 && p.team && p.team.id === team.team.id &&
+        c && c.x >= -2 && c.x <= 52 && c.y >= -6 && c.y <= 60;
+    });
+    if (!shots.length) return '<div class="empty">Shots appear here once the game starts.</div>';
+    var made = 0, tMade = 0, tAtt = 0, paintM = 0, paintA = 0, dots = '';
+    shots.forEach(function (p) {
+      var x = p.coordinate.x, y = Math.min(p.coordinate.y + 5.25, 46.5), three = p.pointsAttempted === 3;
+      var paint = !three && x >= 17 && x <= 33 && y <= 19;
+      if (p.scoringPlay) made++;
+      if (three) { tAtt++; if (p.scoringPlay) tMade++; }
+      if (paint) { paintA++; if (p.scoringPlay) paintM++; }
+      var tip = '<title>' + esc((p.clock && p.clock.displayValue) + ' Q' + (p.period && p.period.number) + ' · ' + p.text) + '</title>';
+      dots += p.scoringPlay
+        ? '<circle cx="' + x + '" cy="' + y + '" r=".85" style="fill:' + color + '" stroke="#0B0E14" stroke-width=".2">' + tip + '</circle>'
+        : '<g stroke="#9AA3B2" stroke-width=".35" opacity=".8">' + tip + '<line x1="' + (x - .6) + '" y1="' + (y - .6) + '" x2="' + (x + .6) + '" y2="' + (y + .6) + '"/><line x1="' + (x - .6) + '" y1="' + (y + .6) + '" x2="' + (x + .6) + '" y2="' + (y - .6) + '"/></g>';
+    });
+    var pct = function (m, a) { return a ? Math.round(m / a * 100) + '%' : '–'; };
+    var court = '<g class="court"><rect x="0" y="0" width="50" height="47"/><rect x="17" y="0" width="16" height="19"/>' +
+      '<circle cx="25" cy="19" r="6"/><path d="M21,5.25 A4,4 0 0 0 29,5.25"/><line x1="22" y1="4" x2="28" y2="4"/><circle cx="25" cy="5.25" r=".75"/>' +
+      '<path d="M3,0 L3,14.2 A23.75,23.75 0 0 0 47,14.2 L47,0"/><path d="M19,47 A6,6 0 0 1 31,47"/></g>';
+    return '<div class="shotwrap"><svg viewBox="-1 -1 52 49" role="img" aria-label="' + esc(team.team.displayName) + ' shot chart: ' + made + ' made of ' + shots.length + '">' +
+      '<rect x="-1" y="-1" width="52" height="49" fill="#10141c"/>' + court + dots + '</svg>' +
+      '<div class="shotside"><div><b>' + made + ' / ' + shots.length + '</b>Field goals · ' + pct(made, shots.length) + '</div>' +
+      '<div><b>' + tMade + ' / ' + tAtt + '</b>Threes · ' + pct(tMade, tAtt) + '</div>' +
+      '<div><b>' + paintM + ' / ' + paintA + '</b>In the paint · ' + pct(paintM, paintA) + '</div>' +
+      '<div class="key"><span><i style="background:' + color + '"></i>Made</span><span><i class="miss"></i>Missed</span></div>' +
+      '<div style="font-size:12px">Free throws are not shown. Hover a shot for the play.</div></div></div>';
+  }
+  function matchupHTML(d, home, away, state, tv) {
+    var out = '', row = function (k, v) { return v ? '<div class="mrow"><span>' + esc(k) + '</span><span>' + esc(v) + '</span></div>' : ''; };
+    var ser = d.seasonseries && d.seasonseries[0];
+    out += row('Season series', ser && (ser.summary || ser.shortSummary));
+    var pc = d.pickcenter && d.pickcenter[0];
+    if (pc) out += row(state === 'pre' ? 'Line' : 'Pre-game line', [pc.details, pc.overUnder != null ? 'O/U ' + pc.overUnder : ''].filter(Boolean).join(' · '));
+    out += row('Watch on', tv);
+    var inj = (d.injuries || []).filter(function (t) { return t.injuries && t.injuries.length; });
+    // home team first, like the rest of the screen
+    inj.sort(function (a, b) { var h = function (t) { return t.team && t.team.id === home.team.id ? 0 : 1; }; return h(a) - h(b); });
+    inj.forEach(function (t) {
+      out += '<div class="inj"><h4>' + esc((t.team && t.team.abbreviation) || '') + ' injuries</h4>' +
+        t.injuries.slice(0, 8).map(function (i) {
+          var a = i.athlete || {}, status = i.status || (i.type && i.type.description) || '';
+          var what = i.details && (i.details.type || i.details.location);
+          return '<div><b' + (/out/i.test(status) ? ' class="out"' : '') + ' style="font-weight:500">' + esc(a.displayName || '') +
+            (a.position && a.position.abbreviation ? ' <small style="color:var(--muted)">' + esc(a.position.abbreviation) + '</small>' : '') + '</b>' +
+            '<span>' + esc(status) + (what ? ' · ' + esc(what) : '') + '</span></div>';
+        }).join('') + '</div>';
+    });
+    if (!inj.length) out += row('Injuries', 'None reported');
+    var gi = d.gameInfo || {}, refs = (gi.officials || []).map(function (o) { return o.displayName; }).join(', ');
+    var fine = [refs ? 'Referees: ' + refs : '', gi.attendance && state !== 'pre' ? 'Attendance: ' + Number(gi.attendance).toLocaleString() : ''].filter(Boolean);
+    if (fine.length) out += '<div class="fine">' + esc(fine.join(' · ')) + '</div>';
+    return out || '<div class="empty">Nothing to show yet.</div>';
+  }
+
   function render() {
     var d = current(); if (!d) return;
     var comp = d.header.competitions[0];
@@ -321,7 +506,10 @@ tr.bench-start td{border-top:1px solid var(--line)}
     document.documentElement.style.setProperty('--home', hc);
     document.documentElement.style.setProperty('--away', ac);
     document.title = away.team.abbreviation + ' ' + (away.score || 0) + ' – ' + home.team.abbreviation + ' ' + (home.score || 0);
-    $('venue').textContent = (d.gameInfo && d.gameInfo.venue && d.gameInfo.venue.fullName) || '';
+    var tv = tvList(d);
+    $('venue').textContent = [(d.gameInfo && d.gameInfo.venue && d.gameInfo.venue.fullName) || '', tv].filter(Boolean).join(' · ');
+    var plays = d.plays || [];
+    var tf = teamFouls(plays, st.period);
 
     var box = d.boxscore || {};
     var bt = function (c) { return (box.teams || []).find(function (t) { return t.team.id === c.team.id; }) || {}; };
@@ -329,14 +517,19 @@ tr.bench-start td{border-top:1px solid var(--line)}
 
     function sideHTML(c, cls, other) {
       var logo = c.team.logos && c.team.logos[0] && c.team.logos[0].href;
-      var fouls = stat(bt(c), 'fouls');
       var mine = parseInt(c.score, 10) || 0;
+      var them = c === home ? away : home;
+      var myFouls = tf.count[c.team.id] || 0;
+      // a team shoots free throws on every foul once the other side reaches the limit
+      var limit = st.period > 4 ? 4 : 5;
+      var bonus = state === 'in' && ((tf.count[them.team.id] || 0) >= limit || (tf.late[them.team.id] || 0) >= 2);
       return '<div class="side ' + cls + '">' +
         '<div class="badge cond" aria-hidden="true" style="border-color:' + (cls === 'home' ? hc : ac) + '">' +
           (logo ? '<img alt="" src="' + esc(logo) + '">' : esc(c.team.abbreviation)) + '</div>' +
         '<div class="tinfo"><div class="tname cond">' + esc(c.team.name || c.team.displayName) + '</div>' +
           '<div class="tsub">' + (cls === 'home' ? 'Home' : 'Away') + (c.record && c.record[0] ? ' · ' + esc(c.record[0].summary || c.record[0].displayValue || '') : '') +
-          (fouls != null && state === 'in' ? ' · ' + esc(fouls) + ' fouls' : '') + '</div></div>' +
+          (state === 'in' ? ' · ' + myFouls + ' team foul' + (myFouls === 1 ? '' : 's') + ' this qtr' : '') +
+          (bonus ? '<span class="chip">Bonus</span>' : '') + '</div></div>' +
         '<div class="pts cond' + (mine < other ? ' behind' : '') + '">' + (state === 'pre' ? '–' : mine) + '</div></div>';
     }
     var mid;
@@ -345,6 +538,7 @@ tr.bench-start td{border-top:1px solid var(--line)}
     else if (state === 'post') mid = '<div class="period cond">Final</div>';
     else mid = '<div class="period cond">Tip-off</div><div class="cond" style="font-size:26px;font-weight:600">' + esc(st.type.shortDetail) + '</div>';
     $('score').innerHTML = sideHTML(home, 'home', as) + '<div class="mid">' + mid + '</div>' + sideHTML(away, 'away', hs);
+    $('lines').innerHTML = state === 'pre' ? '' : linesHTML(home, away);
 
     // tabs
     if (!sideChosen && wantTeam) side = home.team.abbreviation === wantTeam ? 'home' : 'away';
@@ -362,7 +556,7 @@ tr.bench-start td{border-top:1px solid var(--line)}
       var ix = {}; block.names.forEach(function (n, i) { ix[n] = i; });
       var rows = block.athletes.filter(function (a) { return !a.didNotPlay && a.stats && a.stats.length; });
       var seenBench = false;
-      $('players').innerHTML = '<table><thead><tr><th></th><th>PLAYER</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>FG</th><th>3PT</th><th>+/-</th></tr></thead><tbody>' +
+      $('players').innerHTML = '<table><thead><tr><th></th><th>PLAYER</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>FG</th><th>3PT</th><th title="Personal fouls">PF</th><th>+/-</th></tr></thead><tbody>' +
         rows.map(function (a) {
           var s = function (k) { return esc(a.stats[ix[k]] != null ? a.stats[ix[k]] : ''); };
           var cls = '';
@@ -371,15 +565,21 @@ tr.bench-start td{border-top:1px solid var(--line)}
           return '<tr' + cls + '><td class="d">' + (a.active && state === 'in' ? '<span class="dot" role="img" aria-label="On court"></span>' : '') + '</td>' +
             '<td class="n">' + esc(a.athlete.displayName) + (pos ? ' <small>' + esc(pos) + '</small>' : '') + '</td>' +
             '<td>' + s('MIN') + '</td><td class="p">' + s('PTS') + '</td><td class="s">' + s('REB') + '</td><td class="s">' + s('AST') + '</td>' +
-            '<td>' + s('FG') + '</td><td>' + s('3PT') + '</td><td>' + s('+/-') + '</td></tr>';
+            '<td>' + s('STL') + '</td><td>' + s('BLK') + '</td><td>' + s('FG') + '</td><td>' + s('3PT') + '</td>' +
+            pfCell(a.stats[ix.PF]) + '<td>' + s('+/-') + '</td></tr>';
         }).join('') + '</tbody></table>';
     }
 
+    $('players').hidden = view !== 'box';
+    $('shots').hidden = view !== 'shots';
+    if (view === 'shots') $('shots').innerHTML = shotsHTML(plays, sel, side === 'home' ? hc : ac);
+
     // plays
-    var plays = (d.plays || []).slice(-3).reverse();
-    $('plays').innerHTML = plays.length ? plays.map(function (p) {
+    var last = plays.slice(-3).reverse();
+    $('plays').innerHTML = last.length ? last.map(function (p) {
       return '<div class="play"><b>' + esc(p.clock && p.clock.displayValue) + '</b><span>' + esc(p.text) + '</span></div>';
     }).join('') : '<div class="empty">No plays yet.</div>';
+    $('flow').innerHTML = flowHTML(d.winprobability || [], plays, home, away);
 
     // win chance
     var wp = d.winprobability && d.winprobability.length ? d.winprobability[d.winprobability.length - 1] : null;
@@ -398,7 +598,12 @@ tr.bench-start td{border-top:1px solid var(--line)}
       ['Rebounds', 'totalRebounds', '', false],
       ['Assists', 'assists', '', false],
       ['Turnovers', 'turnovers', '', true],
-      ['Points in paint', 'pointsInPaint', '', false]
+      ['Points in paint', 'pointsInPaint', '', false],
+      ['Fast break points', 'fastBreakPoints', '', false],
+      ['Points off turnovers', 'turnoverPoints', '', false],
+      ['Steals', 'steals', '', false],
+      ['Blocks', 'blocks', '', false],
+      ['Largest lead', 'largestLead', '', false]
     ];
     var hb = bt(home), ab = bt(away);
     var rowsC = defs.map(function (f) {
@@ -412,7 +617,9 @@ tr.bench-start td{border-top:1px solid var(--line)}
         '<div class="b" aria-hidden="true"><i style="width:' + share + '%"></i><i></i></div></div>';
     }).join('');
     $('cmp').innerHTML = '<div class="cmphead label"><span>' + esc(home.team.abbreviation) + '</span><span>Team comparison</span><span>' + esc(away.team.abbreviation) + '</span></div>' +
-      (rowsC || '<div class="empty">Team stats appear once the game starts.</div>');
+      (rowsC || '<div class="empty">Team stats appear once the game starts.</div>') +
+      (stat(hb, 'leadChanges') != null && rowsC ? '<div class="mrow"><span>Lead changes</span><span>' + esc(stat(hb, 'leadChanges')) + '</span></div>' : '');
+    $('matchup').innerHTML = matchupHTML(d, home, away, state, tv);
 
     // leaders: best across both teams per category
     var best = {};
@@ -444,6 +651,12 @@ tr.bench-start td{border-top:1px solid var(--line)}
   $('tabs').addEventListener('click', function (e) {
     var b = e.target.closest('button[data-side]'); if (!b) return;
     side = b.getAttribute('data-side'); sideChosen = true; render();
+  });
+  $('views').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-view]'); if (!b) return;
+    view = b.getAttribute('data-view');
+    [].forEach.call(this.querySelectorAll('button'), function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+    render();
   });
   $('games').addEventListener('click', function (e) {
     var b = e.target.closest('button[data-id]'); if (b) chooseGame(b.getAttribute('data-id'));
