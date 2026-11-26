@@ -36,6 +36,16 @@ select{background:var(--bg);border:1px solid var(--line);border-radius:8px;min-h
 /* tonight's games */
 .games{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x proximity;padding:2px 2px 6px;scrollbar-width:thin;-webkit-overflow-scrolling:touch}
 .games:empty{display:none}
+.days{display:flex;gap:6px;overflow-x:auto;padding:2px 2px 4px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.days::-webkit-scrollbar{display:none}
+.day{flex:0 0 auto;min-width:78px;min-height:52px;border:1px solid var(--line);border-radius:12px;background:var(--bg);color:var(--soft);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:4px 10px;touch-action:manipulation;transition:border-color .15s,background .15s,color .15s}
+.day:hover{border-color:#3a4458}
+.day b{font-family:'Barlow Condensed','Arial Narrow',sans-serif;font-weight:600;font-size:17px;letter-spacing:.05em;text-transform:uppercase}
+.day small{font-size:11px;color:var(--muted)}
+.day.past b{color:var(--muted)}
+.day[aria-pressed="true"]{border-color:var(--warn);background:#1c2230;color:var(--text)}
+.day[aria-pressed="true"] b{color:var(--warn)}
+.nogames{font-size:14px;color:var(--muted);padding:14px 4px}
 .gm{flex:0 0 auto;scroll-snap-align:start;min-width:176px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;text-align:left;touch-action:manipulation;transition:border-color .15s,background .15s}
 .gm:hover{border-color:#3a4458}
 .gm[aria-current="true"]{border-color:var(--warn);background:#1c2230;box-shadow:0 0 0 1px var(--warn) inset}
@@ -177,7 +187,8 @@ td.pf.out{color:#FF6B6B;font-weight:700}
 </head>
 <body>
 <div id="app">
-  <nav class="games" id="games" aria-label="Tonight's games"></nav>
+  <nav class="days" id="days" aria-label="Schedule by day"></nav>
+  <nav class="games" id="games" aria-label="Games on the chosen day"></nav>
   <section class="panel">
     <div class="strip">
       <div class="grp"><span class="dot" id="dot" aria-hidden="true"></span><span id="status" role="status">Connecting…</span></div>
@@ -278,9 +289,60 @@ td.pf.out{color:#FF6B6B;font-weight:700}
   }
 
   /* ---------- game list ---------- */
+  /* schedule: 2 days back to 7 days ahead; 0 = today */
+  var day = 0, dayCount = {};
+  function dateKey(off) {
+    var d = new Date(); d.setDate(d.getDate() + off);
+    return d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
+  }
+  function dayURL(off) { return API + 'scoreboard?dates=' + dateKey(off); }
+  /* On first load ask ESPN which day is "current": on a day with no games it jumps to the next game day. */
+  var firstLoad = true;
+  function offsetOf(iso) {
+    var p = String(iso || '').split('-'); if (p.length !== 3) return 0;
+    var a = new Date(+p[0], +p[1] - 1, +p[2]), t = new Date(); t.setHours(0, 0, 0, 0);
+    var off = Math.round((a - t) / 86400000);
+    return off >= -2 && off <= 7 ? off : 0;
+  }
+  function drawDays() {
+    var html = '';
+    for (var off = -2; off <= 7; off++) {
+      var d = new Date(); d.setDate(d.getDate() + off);
+      var name = off === 0 ? 'Today' : off === -1 ? 'Yesterday' : off === 1 ? 'Tomorrow' : d.toLocaleDateString([], { weekday: 'short' });
+      var date = d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+      var n = dayCount[off];
+      var sub = n == null ? date : n === 0 ? date + ' · off' : date + ' · ' + n;
+      html += '<button type="button" class="day' + (off < 0 ? ' past' : '') + '" data-day="' + off + '" aria-pressed="' + (off === day) + '"' +
+        ' aria-label="' + esc(name + ', ' + date + (n == null ? '' : ', ' + n + ' games')) + '"><b>' + esc(name) + '</b><small>' + esc(sub) + '</small></button>';
+    }
+    $('days').innerHTML = html;
+  }
+  function showDay() {
+    var on = $('days').querySelector('[aria-pressed="true"]');
+    if (on) on.scrollIntoView({ block: 'nearest', inline: 'center' });
+  }
+  /* game counts for every day in the row (one light request per day, once) */
+  function countDays() {
+    for (var off = -2; off <= 7; off++) (function (o) {
+      getJSON(dayURL(o)).then(function (d) { dayCount[o] = (d.events || []).length; drawDays(); }).catch(function () {});
+    })(off);
+  }
+  function chooseDay(off) {
+    if (off === day) return;
+    day = off; games = []; delete $('games').dataset.scrolled;
+    drawDays(); showDay();
+    $('games').innerHTML = '<div class="nogames">Loading…</div>';
+    loadGames().catch(function () { $('games').innerHTML = '<div class="nogames">Couldn’t load that day. Try again.</div>'; });
+  }
+
   function loadGames() {
-    return getJSON(API + 'scoreboard').then(function (d) {
+    var want = day, first = firstLoad;
+    return getJSON(first ? API + 'scoreboard' : dayURL(want)).then(function (d) {
+      if (first) { firstLoad = false; want = day = offsetOf(d.day && d.day.date); }
+      if (want !== day) return;
       var evs = d.events || [];
+      dayCount[want] = evs.length; drawDays();
+      if (first) showDay();
       if (!eventId) {
         var pick = null;
         if (wantTeam) pick = evs.find(function (e) { return (e.shortName || '').toUpperCase().split(/[^A-Z]+/).indexOf(wantTeam) >= 0; });
@@ -298,7 +360,7 @@ td.pf.out{color:#FF6B6B;font-weight:700}
   var games = [];
   function drawGames() {
     var nav = $('games');
-    if (!games.length) { nav.innerHTML = ''; return; }
+    if (!games.length) { nav.innerHTML = '<div class="nogames">No NBA games on this day.</div>'; return; }
     nav.innerHTML = games.map(function (e) {
       var comp = e.competitions[0], st = e.status.type;
       var teams = comp.competitors.slice().sort(function (a, b) { return (a.homeAway === 'away' ? 0 : 1) - (b.homeAway === 'away' ? 0 : 1); });
@@ -312,9 +374,16 @@ td.pf.out{color:#FF6B6B;font-weight:700}
           '<span class="ab">' + esc(c.team.abbreviation) + '</span>' +
           (started ? '<span class="sc">' + esc(c.score) + '</span>' : '') + '</span>';
       }).join('');
-      var label = teams.map(function (c) { return c.team.displayName + (started ? ' ' + c.score : ''); }).join(' at ') + ', ' + st.shortDetail;
+      var when = st.shortDetail;
+      if (st.state === 'pre' && !/TBD/i.test(when)) {
+        var tip = new Date(e.date);
+        if (!isNaN(tip)) when = tip.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      }
+      var tv = (comp.broadcasts || []).map(function (b) { return (b.names || [])[0]; }).filter(Boolean)[0];
+      if (st.state === 'pre' && tv) when += ' · ' + tv;
+      var label = teams.map(function (c) { return c.team.displayName + (started ? ' ' + c.score : ''); }).join(' at ') + ', ' + when;
       return '<button type="button" class="gm" data-id="' + esc(e.id) + '" aria-current="' + (e.id === eventId) + '" aria-label="' + esc(label) + '">' +
-        rows + '<span class="st' + (st.state === 'in' ? ' live' : '') + '">' + esc(st.shortDetail) + '</span></button>';
+        rows + '<span class="st' + (st.state === 'in' ? ' live' : '') + '">' + esc(when) + '</span></button>';
     }).join('');
     var on = nav.querySelector('[aria-current="true"]');
     if (on && !nav.dataset.scrolled) { on.scrollIntoView({ block: 'nearest', inline: 'center' }); nav.dataset.scrolled = '1'; }
@@ -658,13 +727,17 @@ td.pf.out{color:#FF6B6B;font-weight:700}
     [].forEach.call(this.querySelectorAll('button'), function (x) { x.setAttribute('aria-pressed', String(x === b)); });
     render();
   });
+  $('days').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-day]'); if (b) chooseDay(+b.getAttribute('data-day'));
+  });
   $('games').addEventListener('click', function (e) {
     var b = e.target.closest('button[data-id]'); if (b) chooseGame(b.getAttribute('data-id'));
   });
 
   $('dVal').textContent = delay + 's';
   setInterval(tick, 1000);
-  setInterval(function () { loadGames().catch(function () {}); }, 20000);
+  drawDays(); countDays();
+  setInterval(function () { if (day <= 1 && games.some(function (g) { return g.status.type.state !== 'post'; })) loadGames().catch(function () {}); }, 20000);
   loadGames().then(poll).catch(function () { failing = true; tick(); setTimeout(function () { loadGames().then(poll); }, 8000); });
 })();
 </script>
